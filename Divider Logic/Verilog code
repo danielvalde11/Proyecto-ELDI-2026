@@ -7,6 +7,6 @@ module divider(
 );
 assign H = 8'd127;
 assign S[31] = (A[31]&&~B[31] || ~A[31]&&B[31]);
-assign S[30:23] = (A[31:23] + B[31:23])-H;
+assign S[30:23] = (A[31:23] - B[31:23])+ H;
 
 endmodule
