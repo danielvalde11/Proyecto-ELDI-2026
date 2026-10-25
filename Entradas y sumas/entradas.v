@@ -1,3 +1,4 @@
+`timescale 1ns / 1ps
 module teclado (
     input wire clk, rst, wire [3:0] x,
     output reg [3:0] y, reg [3:0] tecla, reg ena, reg [3:0] registro, reg validar         
