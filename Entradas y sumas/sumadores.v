@@ -14,7 +14,7 @@ assign Bfinal=operacion?{~B[31],B[30:0]}:B;
 
 //descomposicion de bits
 wire signoA=A[31];
-wire [7:0]expoA=A[32:0];
+wire [7:0]expoA=A[30:23];
 wire [23:0]mantA={1'b1, A[22:0]};
 
 wire signoB=Bfinal[31];
@@ -44,7 +44,7 @@ always @(posedge clk or posedge rst) begin
                 mantAtemp <= mantA;
                 mantBtemp <= mantB;
                 if (expoA >=expoB) begin
-                    expres <= expreA;
+                    expres <= expoA;
                     difexp <= expoA-expoB;
                 end else begin
                     expres <= expoB;
