@@ -1,76 +1,121 @@
-`timescale 1ns / 1ps
-module teclado (
-    input wire clk, 
-    input wire rst, 
-    input wire [3:0] x,
-    output reg [3:0] y, 
-    output reg [3:0] tecla, 
-    output reg ena, 
-    output reg [3:0] registro, 
-    output reg validar         
+module controlador_entradas (
+    input wire clk,
+    input wire rst, // Reset síncrono activo en alto
+    
+    // Puertos físicos Matriz 1 (numeros)
+    input wire [3:0] col_num,
+    output wire [3:0] fila_num,
+    
+    // Puertos físicos Matriz 2 (Operaciones, Graficar, X, Igual)
+    input wire [3:0] col_op,
+    output wire [3:0] fila_op,
+    
+    // Salidas hacia el Hardware de Conversión IEEE 754
+    output wire [3:0] tecla_num_out,
+    output reg enable_A,
+    output reg enable_B,
+    
+    // Salidas hacia la ALU y Sistema de Video
+    output reg [2:0] opcode_alu,
+    output reg modo_grafica,
+    output reg flag_var_x,
+    output reg calcular_trigger
 );
-    reg [19:0] div_clk;
-    wire clk_lento = div_clk[19]; // Usa div_clk[1] si vas a simular en EDA Playground
-    always @(posedge clk or posedge rst) begin
-        if (rst) div_clk <= 20'd0;
-        else div_clk <= div_clk + 1;
-    end
-//Escanner
-    reg [1:0] contador;
-    always @(posedge clk_lento or posedge rst) begin
+    wire [3:0] tecla_num;
+    wire valid_num;
+    teclado_matricial matriz_numeros (
+        .clk(clk),
+        .rst(rst),
+        .x(col_num),
+        .y(fila_num),
+        .registro(tecla_num),
+        .validar(valid_num)
+    );
+
+    wire [3:0] tecla_op;
+    wire valid_op;
+    teclado_matricial matriz_operaciones (
+        .clk(clk),
+        .rst(rst),
+        .x(col_op),
+        .y(fila_op),
+        .registro(tecla_op),
+        .validar(valid_op)
+    );
+    assign tecla_num_out = tecla_num;
+
+    //FSM - Modelo de Moore---
+    localparam ESTADO_A  = 2'b00;
+    localparam ESTADO_B  = 2'b01;
+    localparam CALCULAR  = 2'b10;
+    
+    reg [1:0] state, next_state;
+    always_ff @(posedge clk) begin
         if (rst) begin
-            contador <= 2'b00;
-            y <= 4'b1110;
+            state <= ESTADO_A;
+            opcode_alu <= 3'b000;
+            modo_grafica <= 1'b0;
+            flag_var_x <= 1'b0;
         end else begin
-            contador <= contador + 1;
-            case (contador)
-                2'b00: y <= 4'b1110;
-                2'b01: y <= 4'b1101;
-                2'b10: y <= 4'b1011;
-                2'b11: y <= 4'b0111;
-            endcase
+            state <= next_state;
+            
+            if (valid_op) begin
+                case (tecla_op)
+                    4'h1: opcode_alu <= 3'b000; // Suma
+                    4'h2: opcode_alu <= 3'b100; // Resta
+                    4'h3: opcode_alu <= 3'b001; // Multiplicación
+                    4'h4: opcode_alu <= 3'b101; // División
+                    4'h5: opcode_alu <= 3'b010; // Seno
+                    4'h6: opcode_alu <= 3'b110; // Coseno
+                    4'h7: modo_grafica <= 1'b1; // Activar Modo Gráfica
+                    4'h8: flag_var_x   <= 1'b1; // Activar Variable X
+                    default: ; 
+                endcase
+            end
         end
     end
-2. Codificador
-    always @(*) begin
-        tecla = 4'h0;
-        ena = 1'b0;
-        case ({y, x})
-//columna0
-            8'b1110_1110: begin tecla = 4'h1; ena = 1'b1; end
-            8'b1110_1101: begin tecla = 4'h4; ena = 1'b1; end
-            8'b1110_1011: begin tecla = 4'h7; ena = 1'b1; end
-            8'b1110_0111: begin tecla = 4'hE; ena = 1'b1; end 
-//columna1  
-            8'b1101_1110: begin tecla = 4'h2; ena = 1'b1; end
-            8'b1101_1101: begin tecla = 4'h5; ena = 1'b1; end
-            8'b1101_1011: begin tecla = 4'h8; ena = 1'b1; end
-            8'b1101_0111: begin tecla = 4'h0; ena = 1'b1; end 
-//columna2            
-            8'b1011_1110: begin tecla = 4'h3; ena = 1'b1; end
-            8'b1011_1101: begin tecla = 4'h6; ena = 1'b1; end
-            8'b1011_1011: begin tecla = 4'h9; ena = 1'b1; end
-            8'b1011_0111: begin tecla = 4'hF; ena = 1'b1; end 
-//columna 3
-            8'b0111_1110: begin tecla = 4'hA; ena = 1'b1; end
-            8'b0111_1101: begin tecla = 4'hB; ena = 1'b1; end
-            8'b0111_1011: begin tecla = 4'hC; ena = 1'b1; end
-            8'b0111_0111: begin tecla = 4'hD; ena = 1'b1; end            
-            default: begin tecla = 4'h0; ena = 1'b0; end
+
+    always_comb begin
+        next_state = state;
+
+        case (state)
+            ESTADO_A: begin
+                if (valid_op && (tecla_op >= 4'h1 && tecla_op <= 4'h6)) 
+                    next_state = ESTADO_B;
+            end
+            
+            ESTADO_B: begin
+                if (valid_op && (tecla_op == 4'hF)) 
+                    next_state = CALCULAR;
+            end
+            
+            CALCULAR: begin
+                next_state = ESTADO_A;
+            end
+            
+            default: next_state = ESTADO_A;
         endcase
     end
-Registro de salida
-    always @(posedge clk or posedge rst) begin
-        if (rst) begin
-            registro <= 4'h0;
-            validar <= 1'b0;
-        end else begin
-            if (ena) begin
-                registro <= tecla;
-                validar <= 1'b1;
-            end else begin
-                validar <= 1'b0;
+    always_comb begin
+        enable_A         = 1'b0;
+        enable_B         = 1'b0;
+        calcular_trigger = 1'b0;
+
+        case (state)
+            ESTADO_A: begin
+                enable_A = 1'b1; 
             end
-        end 
+            
+            ESTADO_B: begin
+                enable_B = 1'b1; 
+            end
+            
+            CALCULAR: begin
+                calcular_trigger = 1'b1; 
+            end
+            
+            default: ;
+        endcase
     end
+
 endmodule
