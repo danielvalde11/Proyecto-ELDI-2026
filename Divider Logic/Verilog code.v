@@ -57,7 +57,6 @@ module floating_point_divider (
         end
     end
 
-    // Normalización IEEE 754
     wire norm = ~Q_parcial[23];
     wire [7:0] exp_real = norm ? (exp_final - 8'd1) : exp_final;
     wire [22:0] mantisa_real = norm ? {Q_parcial[21:0], 1'b0} : Q_parcial[22:0];
