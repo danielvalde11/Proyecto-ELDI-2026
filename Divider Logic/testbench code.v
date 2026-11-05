@@ -36,6 +36,7 @@ module tb_floating_point_divider();
         reset = 0;
         #20;
 
+        // Caso 1
         A = 32'h41200000;
         B = 32'h40000000;
         start = 1;       
@@ -43,6 +44,7 @@ module tb_floating_point_divider();
         @(posedge done); 
         #20;
 
+        // Caso 2
         A = 32'hC0C00000;
         B = 32'h40400000;
         start = 1;
@@ -50,8 +52,25 @@ module tb_floating_point_divider();
         @(posedge done);
         #20;
 
+        // Caso 3
         A = 32'h3F800000;
         B = 32'h3F800000;
+        start = 1;
+        #10 start = 0;
+        @(posedge done);
+        #40;
+        
+        // Caso 4
+        A = 32'h40B00000; 
+        B = 32'h40000000; 
+        start = 1;
+        #10 start = 0;
+        @(posedge done);
+        #40;
+        
+        // Caso 5
+        A = 32'h40E80000; 
+        B = 32'h3F000000; 
         start = 1;
         #10 start = 0;
         @(posedge done);
@@ -61,3 +80,4 @@ module tb_floating_point_divider();
     end
 
 endmodule
+ 
