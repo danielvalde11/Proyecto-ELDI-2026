@@ -1,5 +1,4 @@
 `timescale 1ns / 1ps
-
 module controlador_entradas (
     input wire clk,
     input wire rst, 
