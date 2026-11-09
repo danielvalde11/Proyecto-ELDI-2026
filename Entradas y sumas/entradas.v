@@ -15,7 +15,7 @@ module controlador_entradas (
     output reg enable_A,
     output reg enable_B,
     
-    // Salidas hacia la ALU y Sistema de Video
+    // Salidas hacia la ALU 
     output reg [2:0] opcode_alu,
     output reg modo_grafica,
     output reg flag_var_x,
@@ -27,7 +27,7 @@ module controlador_entradas (
         if (rst) div_clk <= 20'd0;
         else div_clk <= div_clk + 1;
     end
-//Escanner
+
     reg [1:0] contador;
     always @(posedge clk_lento or posedge rst) begin
         if (rst) begin
@@ -53,7 +53,7 @@ module controlador_entradas (
             end
         end
     end
-//Codificador
+
     always @(*) begin
         tecla = 4'h0;
         ena = 1'b0;
@@ -81,7 +81,7 @@ module controlador_entradas (
             default: begin tecla = 4'h0; ena = 1'b0; end
         endcase
     end
-//Registro de salida
+
     always @(posedge clk or posedge rst) begin
         if (rst) begin
             registro <= 4'h0;
