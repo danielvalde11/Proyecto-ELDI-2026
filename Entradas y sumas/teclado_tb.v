@@ -1,5 +1,8 @@
+`timescale 1ns / 1ps
+
 module controlador_entradas_tb;
 
+    
     reg clk;
     reg rst;
     reg [3:0] col_num;
@@ -15,6 +18,7 @@ module controlador_entradas_tb;
     wire flag_var_x;
     wire calcular_trigger;
 
+    
     controlador_entradas uut (
         .clk(clk),
         .rst(rst),
@@ -31,39 +35,46 @@ module controlador_entradas_tb;
         .calcular_trigger(calcular_trigger)
     );
 
+    
     always #5 clk = ~clk;
 
+   
     initial begin
+ 
         clk = 0;
         rst = 1;
-        col_num = 4'b0000;
-        col_op = 4'b0000;
-        
-        #20;
+        col_num = 4'b0000; 
+        col_op = 4'b0000;  
+        #100;
         rst = 0;
         
-        #20;
-        col_num = 4'b0001;
-        #20;
-        col_num = 4'b0000;
         
-        #20;
-        col_op = 4'b0001;
-        #20;
-        col_op = 4'b0000;
         
-        #20;
-        col_num = 4'b0010;
-        #20;
-        col_num = 4'b0000;
+       
+        wait (uut.fila_num == 4'b1110);
+        @(posedge uut.clk_lento);
+        col_num = 4'b1110; 
+        @(posedge uut.clk_lento); 
+        col_num = 4'b0000; 
         
-        #20;
-        col_op = 4'b1111;
-        #20;
-        col_op = 4'b0000;
+      
+        #200; 
         
-        #40;
-        $finish;
+       
+        wait (uut.fila_op == 4'b1110); 
+        @(posedge uut.clk_lento);
+        col_op = 4'b1110; 
+        @(posedge uut.clk_lento); 
+        col_op = 4'b0000; 
+       
+        wait (uut.fila_op == 4'b0111); 
+        @(posedge uut.clk_lento);
+        col_op = 4'b0111; 
+        @(posedge uut.clk_lento);
+        col_op = 4'b0000; 
+        
+        #500;
+        
     end
 
 endmodule
