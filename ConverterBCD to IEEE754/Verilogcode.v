@@ -1,106 +1,152 @@
-module captura_y_escalado_A #(
-    parameter N = 32, // Salida para la ALU o bloque final
-    parameter M = 4   
-)(
-    input  logic             clk,
-    input  logic             reset,
-    input  logic             enable_a,      // Control desde la FSM (Turno de A)
-    input  logic             tecla_valida,  // Viene del antirrebote del teclado
-    input  logic             pulso_punto,   // Detector de la tecla "."
-    input  logic [3:0]       teclado_in,    // Datos puros de la matriz
-    input  logic [N-1:0]     dat_acumulado, 
-    output logic [N-1:0]     A              // Salida escalada hacia la ALU o IEEE 754
+`timescale 1ns / 1ps
+module conversor_dual_AB (
+    input  wire        clk,
+    input  wire        reset,
+    input  wire        enable_A,      // Desde la FSM (Turno del operando A)
+    input  wire        enable_B,      // Desde la FSM (Turno del operando B)
+    input  wire        clear_op,      // Limpia ambos registros para una nueva operación
+    input  wire        tecla_valida,  // Pulso válido del teclado
+    input  wire        pulso_signo,   // Pulso tecla "+/-"
+    input  wire [3:0]  teclado_in,    // Bus de datos de la tecla presionada
+    output wire [31:0] A_float,       // Operando A en IEEE 754 hacia la ALU
+    output wire [31:0] B_float        // Operando B en IEEE 754 hacia la ALU
 );
 
- 
-    logic         captura_permitida;
-    logic [3:0]   q_tecla;
-    logic         flag_punto;
-    logic         en_contador;
-    logic         limite_1010;
-    logic [M-1:0] k_count;
+    captura_y_bcd_a_float bloque_A (
+        .clk          (clk),
+        .reset        (reset),
+        .enable       (enable_A),     
+        .clear_op     (clear_op),
+        .tecla_valida (tecla_valida),
+        .pulso_signo  (pulso_signo),
+        .teclado_in   (teclado_in),
+        .ieee754_out  (A_float)
+    );
 
-    
-    assign captura_permitida = tecla_valida & enable_a;
-
-    always_ff @(posedge clk or posedge reset) begin
-        if (reset)
-            q_tecla <= 4'b0;
-        else if (captura_permitida)
-            q_tecla <= teclado_in;
-    end
-    always_ff @(posedge clk or posedge reset) begin
-        if (reset)
-            flag_punto <= 1'b0;
-        else if (pulso_punto & enable_a) 
-            flag_punto <= 1'b1;
-    end
-
-    assign en_contador = flag_punto & captura_permitida;
-    assign limite_1010 = (k_count[3] & ~k_count[2] & k_count[1] & ~k_count[0]);
-
-    always_ff @(posedge clk or posedge reset) begin
-        if (reset || limite_1010)
-            k_count <= '0;
-        else if (en_contador)
-            k_count <= k_count + 1'b1;
-    end
-    assign A = dat_acumulado << k_count;
+    captura_y_bcd_a_float bloque_B (
+        .clk          (clk),
+        .reset        (reset),
+        .enable       (enable_B),    
+        .clear_op     (clear_op),
+        .tecla_valida (tecla_valida),
+        .pulso_signo  (pulso_signo),
+        .teclado_in   (teclado_in),
+        .ieee754_out  (B_float)
+    );
 
 endmodule
-
-module captura_y_escalado_B #(
-    parameter N = 32, 
-    parameter M = 4   
+module captura_y_bcd_a_float #(
+    parameter N = 32
 )(
-    input  logic             clk,
-    input  logic             reset,
-    input  logic             enable_b,      // Control desde la FSM (Turno de B)
-    input  logic             tecla_valida,  // Viene del antirrebote del teclado
-    input  logic             pulso_punto,   // Detector de la tecla "."
-    input  logic [3:0]       teclado_in,    // Datos puros de la matriz
-    input  logic [N-1:0]     dat_acumulado, 
-    output logic [N-1:0]     B             
+    input  wire        clk,
+    input  wire        reset,
+    input  wire        enable,        
+    input  wire        clear_op,      
+    input  wire        tecla_valida,  
+    input  wire        pulso_signo,   
+    input  wire [3:0]  teclado_in,    
+    output wire [31:0] ieee754_out    
 );
+    reg  [3:0] q_tecla;
+    wire       captura_en;
+    
+    assign captura_en = tecla_valida & enable;
 
-
-    logic         captura_permitida;
-    logic [3:0]   q_tecla;
-    logic         flag_punto;
-    logic         en_contador;
-    logic         limite_1010;
-    logic [M-1:0] k_count;
-
-   
-    assign captura_permitida = tecla_valida & enable_b;
-
-
-    always_ff @(posedge clk or posedge reset) begin
-        if (reset)
-            q_tecla <= 4'b0;
-        else if (captura_permitida)
+    always @(posedge clk or posedge reset) begin
+        if (reset || clear_op)
+            q_tecla <= 4'b0000;
+        else if (captura_en)
             q_tecla <= teclado_in;
     end
+    wire es_punto;
+    wire es_digito;
+    
+    assign es_punto  = q_tecla[3] & ~q_tecla[2] & q_tecla[1] & ~q_tecla[0];
+    assign es_digito = captura_en & ~(teclado_in == 4'b1010);
 
- 
-    always_ff @(posedge clk or posedge reset) begin
-        if (reset)
+    reg [3:0] A0, A1, A2, A3, A4;
+
+    always @(posedge clk or posedge reset) begin
+        if (reset || clear_op) begin
+            A0 <= 4'd0; A1 <= 4'd0; A2 <= 4'd0; A3 <= 4'd0; A4 <= 4'd0;
+        end else if (es_digito) begin
+            A0 <= teclado_in;
+            A1 <= A0;
+            A2 <= A1;
+            A3 <= A2;
+            A4 <= A3;
+        end
+    end
+    wire [31:0] term_A0, term_A1, term_A2, term_A3, term_A4;
+    wire [31:0] binario_entero;
+
+    assign term_A0 = {28'd0, A0};
+    assign term_A1 = ({28'd0, A1} << 3) + ({28'd0, A1} << 1);                                 
+    assign term_A2 = ({28'd0, A2} << 6) + ({28'd0, A2} << 5) + ({28'd0, A2} << 2);             
+    assign term_A3 = ({28'd0, A3} << 9) + ({28'd0, A3} << 8) + ({28'd0, A3} << 7) + 
+                     ({28'd0, A3} << 6) + ({28'd0, A3} << 5) + ({28'd0, A3} << 3);             
+    assign term_A4 = ({28'd0, A4} << 13) + ({28'd0, A4} << 10) + ({28'd0, A4} << 9) + 
+                     ({28'd0, A4} << 8) + ({28'd0, A4} << 4);                                  
+
+    assign binario_entero = term_A0 + term_A1 + term_A2 + term_A3 + term_A4;
+    reg  flag_punto;
+    wire en_counter;
+
+    always @(posedge clk or posedge reset) begin
+        if (reset || clear_op)
             flag_punto <= 1'b0;
-        else if (pulso_punto & enable_b) 
+        else if (enable && (teclado_in == 4'b1010) && tecla_valida)
             flag_punto <= 1'b1;
     end
 
- 
-    assign en_contador = flag_punto & captura_permitida;
-    assign limite_1010 = (k_count[3] & ~k_count[2] & k_count[1] & ~k_count[0]);
+    assign en_counter = flag_punto & es_digito;
+    reg [2:0] k_count;
 
-    always_ff @(posedge clk or posedge reset) begin
-        if (reset || limite_1010)
-            k_count <= '0;
-        else if (en_contador)
+    always @(posedge clk or posedge reset) begin
+        if (reset || clear_op)
+            k_count <= 3'd0;
+        else if (en_counter && (k_count < 3'd5))
             k_count <= k_count + 1'b1;
     end
+    wire [31:0] mux_stage0, mux_stage1, mux_stage2;
 
-    assign B = enable_b ? (dat_acumulado << k_count) : '0;
+    assign mux_stage0 = k_count[0] ? (binario_entero << 1) : binario_entero;
+    assign mux_stage1 = k_count[1] ? (mux_stage0 << 2)     : mux_stage0;
+    assign mux_stage2 = k_count[2] ? (mux_stage1 << 4)     : mux_stage1;
+    
+    reg        sign_reg;
+    reg [4:0]  msb_pos;
+    reg [7:0]  exponente;
+    reg [22:0] mantisa;
+    reg [31:0] norm_shift;
+    integer    i;
+
+    always @(posedge clk or posedge reset) begin
+        if (reset || clear_op)
+            sign_reg <= 1'b0;
+        else if (enable && pulso_signo)
+            sign_reg <= ~sign_reg;
+    end
+
+    always @(*) begin
+        msb_pos = 5'd0;
+        for (i = 0; i < 32; i = i + 1) begin
+            if (mux_stage2[i]) msb_pos = i;
+        end
+    end
+
+    always @(*) begin
+        if (mux_stage2 == 32'd0) begin
+            exponente  = 8'd0;
+            mantisa    = 23'd0;
+            norm_shift = 32'd0;
+        end else begin
+            exponente  = 8'd127 + {3'd0, msb_pos};
+            norm_shift = mux_stage2 << (5'd31 - msb_pos);
+            mantisa    = norm_shift[30:8];
+        end
+    end
+
+    assign ieee754_out = {sign_reg, exponente, mantisa};
 
 endmodule
