@@ -1,3 +1,5 @@
+//Código generado por Gemini IA
+
 `timescale 1ns / 1ps
 module conversor_dual_AB (
     input  wire        clk,
