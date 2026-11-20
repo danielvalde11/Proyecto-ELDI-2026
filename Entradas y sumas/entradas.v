@@ -89,7 +89,7 @@ module controlador_entradas (
     
     reg [3:0] tecla_op_reg;
     reg valid_op;
-    
+    // Código generador con Gemini IA
     always @(*) begin
         tecla_op_reg = 4'h0;
         valid_op = 1'b0;
@@ -109,7 +109,7 @@ module controlador_entradas (
         endcase
     end
 
-    // --- 6. FSM Máquina de Estados ---
+    // --- 6. FSM Máquina de Estados --- Código generado por Gemini IA
     parameter ESTADO_A = 2'b00;
     parameter ESTADO_B = 2'b01;
     parameter CALCULAR = 2'b10;
