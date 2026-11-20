@@ -44,6 +44,10 @@ Por último te quedara hacer las pruebas de funcionamiento correcto, recuerda qu
 # LIMITACIONES DEL PROYECTO A TENER EN CUENTA:
 
 # DECLARACIÓN DEL USO DE IA:
-Para el proyecto fue necesario el uso de IA principalmente Gemini IA y CLuade. Los usos que se le dierona estas fue la generación/acompañamiento del desarrollo del codigo en los diferentes modulos, generación de imagenes y consultación de información requerida durante el proyecto. A continuación presentamos todos los usos de estas dos IAs en nuestro proyecto:
-   - Para el modulo de entradas lógicas se utilizo la IA para generar el codigo que representa la FSM y asignar los valores BCD a cada posición de la matriz de botones.
-   - Para el modulo de conversión de BCD a IEEE 754, se genero el código totalmente con Gemini IA, en donde se le envió el diagrama del diseño y la explicación del funcionamiento para que   genere 
+Para el proyecto fue necesario el uso de IA principalmente Gemini IA y Claude. Los usos que se le dierona estas fue la generación/acompañamiento del desarrollo del codigo en los diferentes modulos, generación de imagenes y consultación de información requerida durante el proyecto. A continuación presentamos todos los usos de estas dos IAs en nuestro proyecto:
+- **Módulo de entradas lógicas (`Entradas y sumas/entradas.v`):** Se utilizó la IA para generar el código que representa la FSM y asignar los valores BCD a cada posición de la matriz de botones.
+- **Módulo de conversión de BCD a IEEE 754 (`ConverterBCD to IEEE754/Verilogcode.v`):** Se generó el código totalmente con Gemini IA, enviándole el diagrama del diseño y la explicación del  funcionamiento para que implementara el código según el diseño planteado.
+- **Lógica de división (`Divider Logic/Verilog code.v`):** Se pidió generar el código para el proceso de división secuencial de la mantisa.
+- **Módulo de salidas (`Output logic/Output_logic.v`):** Se generó el código totalmente con Gemini IA, subiendo el diagrama del diseño y explicando la lógica requerida para guiar la generación del código.
+- Se le envio a Gemini IA todos los códigos del repositorio ( excluyendo el de la graficadora) para poder unirlos y generar el codigo final que cumple con la graficadora básica.
+- Se le envio a Claude los diagramas realizados a mano para que generara la imagen de estos mismos.
