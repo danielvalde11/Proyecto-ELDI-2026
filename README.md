@@ -44,5 +44,6 @@ Por último te quedara hacer las pruebas de funcionamiento correcto, recuerda qu
 # LIMITACIONES DEL PROYECTO A TENER EN CUENTA:
 
 # DECLARACIÓN DEL USO DE IA:
-- Para el proyecto fue necesario el uso de IA principalmente Gemini IA y CLuade. Los usos que se le dierona estas fue la generación/acompañamiento del desarrollo del codigo en los diferentes modulos, generación de imagenes y consultación de información requerida durante el proyecto. A continuación presentamos todos los usos de estas dos IAs en nuestro proyecto:
-- 
+Para el proyecto fue necesario el uso de IA principalmente Gemini IA y CLuade. Los usos que se le dierona estas fue la generación/acompañamiento del desarrollo del codigo en los diferentes modulos, generación de imagenes y consultación de información requerida durante el proyecto. A continuación presentamos todos los usos de estas dos IAs en nuestro proyecto:
+   - Para el modulo de entradas lógicas se utilizo la IA para generar el codigo que representa la FSM y asignar los valores BCD a cada posición de la matriz de botones.
+   - Para el modulo de conversión de BCD a IEEE 754, se genero el código totalmente con Gemini IA, en donde se le envió el diagrama del diseño y la explicación del funcionamiento para que   genere 
