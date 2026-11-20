@@ -35,7 +35,7 @@ module floating_point_divider (
         .sel_A(sel_A),
         .done(done)
     );
-
+// Código generado con Gemini IA
     always @(posedge clk or posedge reset) begin
         if (reset) begin
             R_parcial <= 25'd0;
