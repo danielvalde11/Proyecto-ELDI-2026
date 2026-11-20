@@ -41,8 +41,8 @@ Para la reproducción del proyecto se requiere tener los siguientes recursos de 
 
 Por último te quedara hacer las pruebas de funcionamiento correcto, recuerda que en los 8 displays se vera el resultado de las operaciones indicadas.
 
-##LIMITACIONES DEL PROYECTO A TENER EN CUENTA:
+# LIMITACIONES DEL PROYECTO A TENER EN CUENTA:
 
-##DECLARACIÓN DEL USO DE IA: 
-Para el proyecto fue necesario el uso de IA principalmente Gemini IA y CLuade. Los usos que se le dierona estas fue la generación/acompañamiento del desarrollo del codigo en los diferentes modulos, generación de imagenes y consultación de información requerida durante el proyecto. A continuación presentamos todos los usos de estas dos IAs en nuestro proyecto:
+# DECLARACIÓN DEL USO DE IA:
+- Para el proyecto fue necesario el uso de IA principalmente Gemini IA y CLuade. Los usos que se le dierona estas fue la generación/acompañamiento del desarrollo del codigo en los diferentes modulos, generación de imagenes y consultación de información requerida durante el proyecto. A continuación presentamos todos los usos de estas dos IAs en nuestro proyecto:
 - 
