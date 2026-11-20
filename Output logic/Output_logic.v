@@ -1,4 +1,4 @@
-
+//Código realizado con IA
 module float_to_bcd_nexys (
     input  wire        clk,       
     input  wire        RST,       
