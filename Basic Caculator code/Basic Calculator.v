@@ -1,17 +1,23 @@
-//Còdigo generado por Gemini IA
+//codigo generado por Gemini IA
+`timescale 1ns / 1ps
+
 module calculadora_top (
-    input  wire        clk,        
-    input  wire        rst,       
+    input  wire        clk,        // reloj de 100 MHz
+    input  wire        rst,        // reset global
+
+    // teclado matricial 1 (numeros)
     input  wire [3:0]  col_num,
     output wire [3:0]  fila_num,
+
+    // teclado matricial 2 (operaciones)
     input  wire [3:0]  col_op,
     output wire [3:0]  fila_op,
 
-    // Salidas hacia los 8 Displays de 7 segmentos de la Nexys
+    // displays 7 segmentos y leds
     output wire [7:0]  AN,
     output wire [6:0]  seg,
     output wire        dp,
-    output wire        listo_led,   // LED indicador de resultado listo
+    output wire        listo_led,
     output wire [14:0] debug_led
 );
 
@@ -23,17 +29,16 @@ module calculadora_top (
     wire        enable_B;
 
     wire [2:0]  opcode_alu;
-    wire        modo_grafica;      // Reservado para futura etapa graficadora
-    wire        flag_var_x;        // Reservado para futura etapa graficadora
+    wire        modo_grafica;
+    wire        flag_var_x;
     wire        calcular_trigger;
 
     wire [31:0] A_float;
     wire [31:0] B_float;
-
     wire [31:0] alu_result;
     wire        alu_done;
 
-    // Generación de pulso de 1 ciclo (100 MHz) al presionar '=' (calcular_trigger)
+    // pulso de 1 ciclo cuando se presiona igual
     reg calc_trig_d1, calc_trig_d2;
     always @(posedge clk or posedge rst) begin
         if (rst) begin
@@ -46,21 +51,32 @@ module calculadora_top (
     end
     wire start_alu = calc_trig_d1 & ~calc_trig_d2;
 
-    // Limpieza automática de operandos al iniciar una nueva operación tras '='
-    reg esperar_nuevo_ingreso;
+    // limpieza automatica al empezar una operacion nueva despues de '='
+    reg       esperar_nuevo_ingreso;
+    reg       tecla_valida_d, pulso_signo_d;
+    reg [3:0] tecla_num_d;
+
     always @(posedge clk or posedge rst) begin
-        if (rst)
+        if (rst) begin
             esperar_nuevo_ingreso <= 1'b0;
-        else if (start_alu)
-            esperar_nuevo_ingreso <= 1'b1;
-        else if (tecla_valida_pulse || pulso_signo_pulse)
-            esperar_nuevo_ingreso <= 1'b0;
+            tecla_valida_d        <= 1'b0;
+            pulso_signo_d         <= 1'b0;
+            tecla_num_d           <= 4'd0;
+        end else begin
+            tecla_valida_d <= tecla_valida_pulse;
+            pulso_signo_d  <= pulso_signo_pulse;
+            tecla_num_d    <= tecla_num_out;
+            if (start_alu)
+                esperar_nuevo_ingreso <= 1'b1;
+            else if (tecla_valida_pulse || pulso_signo_pulse)
+                esperar_nuevo_ingreso <= 1'b0;
+        end
     end
 
-    wire auto_clear = esperar_nuevo_ingreso & (tecla_valida_pulse | pulso_signo_pulse);
+    wire auto_clear  = esperar_nuevo_ingreso & (tecla_valida_pulse | pulso_signo_pulse);
     wire clear_total = clear_op_pulse | auto_clear;
 
-    // 1. INPUT LOGIC: Escaneo de matrices y FSM de control de entrada
+    // logica de entradas
     controlador_entradas u_input_logic (
         .clk                (clk),
         .rst                (rst),
@@ -80,21 +96,21 @@ module calculadora_top (
         .calcular_trigger   (calcular_trigger)
     );
 
-    // 2. CONVERSORES BCD -> IEEE-754 (Operandos A y B)
+    // conversores BCD a IEEE 754 para A y B
     conversor_dual_AB u_bcd_to_float (
         .clk          (clk),
         .reset        (rst),
         .enable_A     (enable_A),
         .enable_B     (enable_B),
         .clear_op     (clear_total),
-        .tecla_valida (tecla_valida_pulse),
-        .pulso_signo  (pulso_signo_pulse),
-        .teclado_in   (tecla_num_out),
+        .tecla_valida (tecla_valida_d),
+        .pulso_signo  (pulso_signo_d),
+        .teclado_in   (tecla_num_d),
         .A_float      (A_float),
         .B_float      (B_float)
     );
 
-    // 3. ALU IEEE-754 CON MUX 4:1
+    // ALU punto flotante
     alu_ieee754 u_alu (
         .clk        (clk),
         .rst        (rst),
@@ -106,7 +122,7 @@ module calculadora_top (
         .done       (alu_done)
     );
 
-    // 4. OUTPUT LOGIC: Captura del resultado ALU y conversión IEEE-754 -> BCD
+    // guarda el resultado y reinicia el bloque de salida
     reg [31:0] resultado_latched;
     reg [1:0]  rst_out_cnt;
     wire       rst_output_logic = rst || (rst_out_cnt != 2'd0);
@@ -117,20 +133,13 @@ module calculadora_top (
             rst_out_cnt       <= 2'd0;
         end else if (alu_done) begin
             resultado_latched <= alu_result;
-            rst_out_cnt       <= 2'd2; // Pulso de reset de 2 ciclos para iniciar S0
+            rst_out_cnt       <= 2'd2;
         end else if (rst_out_cnt != 2'd0) begin
             rst_out_cnt       <= rst_out_cnt - 2'd1;
         end
     end
 
-    assign debug_led[14:11] = tecla_num_out;
-    assign debug_led[10]    = (col_num != 4'b1111);
-    assign debug_led[9]     = (col_op  != 4'b1111);
-    assign debug_led[8]     = enable_A;
-    assign debug_led[7]     = enable_B;
-    assign debug_led[6:4]   = opcode_alu;
-    assign debug_led[3:0]   = A_float[26:23];
-
+    // logica de salida hacia los 8 displays
     float_to_bcd_nexys u_output_logic (
         .clk  (clk),
         .RST  (rst_output_logic),
@@ -141,22 +150,31 @@ module calculadora_top (
         .done (listo_led)
     );
 
+    // leds de depuracion
+    assign debug_led[14:11] = tecla_num_out;
+    assign debug_led[10]    = (col_num != 4'b1111);
+    assign debug_led[9]     = (col_op  != 4'b1111);
+    assign debug_led[8]     = enable_A;
+    assign debug_led[7]     = enable_B;
+    assign debug_led[6:4]   = opcode_alu;
+    assign debug_led[3:0]   = A_float[26:23];
+
 endmodule
 
-// BLOQUE 1: CONTROLADOR DE ENTRADAS (Teclados Matriciales + FSM)
+
 module controlador_entradas (
     input  wire       clk,
     input  wire       rst,
 
-    // Puertos físicos Matriz 1 (números)
+    // puertos matriz 1 (numeros)
     input  wire [3:0] col_num,
     output wire [3:0] fila_num,
 
-    // Puertos físicos Matriz 2 (Operaciones, Graficar, X, Igual)
+    // puertos matriz 2 (operaciones)
     input  wire [3:0] col_op,
     output wire [3:0] fila_op,
 
-    // Salidas hacia el Hardware de Conversión IEEE 754
+    // salidas hacia el conversor BCD
     output reg  [3:0] tecla_num_out,
     output wire       tecla_valida_pulse,
     output wire       pulso_signo_pulse,
@@ -164,34 +182,33 @@ module controlador_entradas (
     output reg        enable_A,
     output reg        enable_B,
 
-    // Salidas hacia la ALU
+    // salidas hacia la ALU
     output reg  [2:0] opcode_alu,
     output reg        modo_grafica,
     output reg        flag_var_x,
     output reg        calcular_trigger
 );
 
+    // divisor de frecuencia para el barrido de filas
     reg [19:0] div_clk;
-    wire clk_lento = div_clk[1]; // NOTA: Cambiar a div_clk[19] antes de sintetizar en la Nexys
+    wire clk_lento = div_clk[19];
+
     always @(posedge clk or posedge rst) begin
         if (rst) div_clk <= 20'd0;
         else     div_clk <= div_clk + 1'b1;
     end
 
+    // contador en anillo para activar una fila a la vez
     reg [3:0] anillo;
     always @(posedge clk_lento or posedge rst) begin
-        if (rst) begin
-            anillo <= 4'b1110;
-        end else begin
-            anillo <= {anillo[2:0], anillo[3]};
-        end
+        if (rst) anillo <= 4'b1110;
+        else     anillo <= {anillo[2:0], anillo[3]};
     end
 
     assign fila_num = anillo;
     assign fila_op  = anillo;
 
-    // Decodificación Matriz 1 (Números y teclas especiales)
-    // 0..9 -> dígitos | A -> Punto decimal ('.') | B -> Signo ('+/-') | C -> Clear
+    // decodificacion matriz 1
     reg [3:0] tecla;
     reg       ena;
 
@@ -199,30 +216,31 @@ module controlador_entradas (
         tecla = 4'h0;
         ena   = 1'b0;
         case ({fila_num, col_num})
+            // columna 0
             8'b1110_1110: begin tecla = 4'h1; ena = 1'b1; end
             8'b1110_1101: begin tecla = 4'h4; ena = 1'b1; end
             8'b1110_1011: begin tecla = 4'h7; ena = 1'b1; end
             8'b1110_0111: begin tecla = 4'hE; ena = 1'b1; end
-
+            // columna 1
             8'b1101_1110: begin tecla = 4'h2; ena = 1'b1; end
             8'b1101_1101: begin tecla = 4'h5; ena = 1'b1; end
             8'b1101_1011: begin tecla = 4'h8; ena = 1'b1; end
             8'b1101_0111: begin tecla = 4'h0; ena = 1'b1; end
-
+            // columna 2
             8'b1011_1110: begin tecla = 4'h3; ena = 1'b1; end
             8'b1011_1101: begin tecla = 4'h6; ena = 1'b1; end
             8'b1011_1011: begin tecla = 4'h9; ena = 1'b1; end
             8'b1011_0111: begin tecla = 4'hF; ena = 1'b1; end
-
-            8'b0111_1110: begin tecla = 4'hA; ena = 1'b1; end // Punto decimal '.'
-            8'b0111_1101: begin tecla = 4'hB; ena = 1'b1; end // Tecla '+/-'
-            8'b0111_1011: begin tecla = 4'hC; ena = 1'b1; end // Tecla Clear
+            // columna 3
+            8'b0111_1110: begin tecla = 4'hA; ena = 1'b1; end // punto '.'
+            8'b0111_1101: begin tecla = 4'hB; ena = 1'b1; end // signo '+/-'
+            8'b0111_1011: begin tecla = 4'hC; ena = 1'b1; end // clear
             8'b0111_0111: begin tecla = 4'hD; ena = 1'b1; end
             default:      begin tecla = 4'h0; ena = 1'b0; end
         endcase
     end
 
-    // Detección limpia de una sola pulsación por barrido de las 4 filas
+    // detecta una sola pulsacion por barrido completo
     reg       key_seen_in_scan;
     reg       key_held;
     reg [3:0] latched_tecla;
@@ -240,7 +258,6 @@ module controlador_entradas (
                 key_seen_in_scan <= 1'b1;
                 latched_tecla    <= tecla;
             end
-            // Al completar la 4ta fila del anillo (0111), evaluamos si hubo tecla nueva
             if (anillo == 4'b0111) begin
                 if (key_seen_in_scan || ena) begin
                     if (!key_held) begin
@@ -255,7 +272,7 @@ module controlador_entradas (
         end
     end
 
-    // Sincronización de evento de tecla a pulso de 1 ciclo en clk (100 MHz)
+    // sincroniza el pulso al reloj de 100 MHz y actualiza tecla_num_out al mismo tiempo
     reg ev_d1, ev_d2;
     always @(posedge clk or posedge rst) begin
         if (rst) begin
@@ -265,22 +282,18 @@ module controlador_entradas (
         end else begin
             ev_d1 <= new_key_event;
             ev_d2 <= ev_d1;
-            if (new_key_event)
+            if (new_key_event && !ev_d1)
                 tecla_num_out <= latched_tecla;
         end
     end
 
     wire single_press_100m = ev_d1 & ~ev_d2;
 
-    // Clasificación del pulso hacia el conversor BCD -> Float
-    // Dígitos (0..9) y Punto (4'hA) -> tecla_valida_pulse
-    // Tecla 4'hB -> pulso_signo_pulse (+/-)
-    // Tecla 4'hC -> clear_op_pulse (Clear)
     assign tecla_valida_pulse = single_press_100m && (latched_tecla <= 4'hA);
     assign pulso_signo_pulse  = single_press_100m && (latched_tecla == 4'hB);
     assign clear_op_pulse     = single_press_100m && (latched_tecla == 4'hC);
 
-    // Decodificación Matriz 2 (Operaciones e Igual)
+    // decodificacion matriz 2
     reg [3:0] tecla_op_reg;
     reg       valid_op;
 
@@ -290,18 +303,18 @@ module controlador_entradas (
         case ({fila_op, col_op})
             8'b1110_1110: begin tecla_op_reg = 4'h1; valid_op = 1'b1; end // Suma
             8'b1110_1101: begin tecla_op_reg = 4'h2; valid_op = 1'b1; end // Resta
-            8'b1110_1011: begin tecla_op_reg = 4'h3; valid_op = 1'b1; end // Multiplicación
-            8'b1110_0111: begin tecla_op_reg = 4'h4; valid_op = 1'b1; end // División
+            8'b1110_1011: begin tecla_op_reg = 4'h3; valid_op = 1'b1; end // Multiplicacion
+            8'b1110_0111: begin tecla_op_reg = 4'h4; valid_op = 1'b1; end // Division
             8'b1101_1110: begin tecla_op_reg = 4'h5; valid_op = 1'b1; end // Seno
             8'b1101_1101: begin tecla_op_reg = 4'h6; valid_op = 1'b1; end // Coseno
-            8'b1101_1011: begin tecla_op_reg = 4'h7; valid_op = 1'b1; end // Gráfica
+            8'b1101_1011: begin tecla_op_reg = 4'h7; valid_op = 1'b1; end // Grafica
             8'b1101_0111: begin tecla_op_reg = 4'h8; valid_op = 1'b1; end // Var X
-            8'b0111_0111: begin tecla_op_reg = 4'h9; valid_op = 1'b1; end // Igual (=)
+            8'b0111_0111: begin tecla_op_reg = 4'h9; valid_op = 1'b1; end // Igual
             default:      begin tecla_op_reg = 4'h0; valid_op = 1'b0; end
         endcase
     end
 
-    // --- FSM Máquina de Estados de Control de Entrada ---
+    // estados de la FSM de entrada
     parameter ESTADO_A = 2'b00;
     parameter ESTADO_B = 2'b01;
     parameter CALCULAR = 2'b10;
@@ -344,6 +357,7 @@ module controlador_entradas (
         endcase
     end
 
+    // registro de operacion seleccionada
     always @(posedge clk_lento or posedge rst) begin
         if (rst) begin
             opcode_alu   <= 3'b000;
@@ -353,12 +367,12 @@ module controlador_entradas (
             case (tecla_op_reg)
                 4'h1: opcode_alu   <= 3'b000; // Suma
                 4'h2: opcode_alu   <= 3'b100; // Resta
-                4'h3: opcode_alu   <= 3'b001; // Multiplicación
-                4'h4: opcode_alu   <= 3'b101; // División
+                4'h3: opcode_alu   <= 3'b001; // Multiplicacion
+                4'h4: opcode_alu   <= 3'b101; // Division
                 4'h5: opcode_alu   <= 3'b010; // Seno
                 4'h6: opcode_alu   <= 3'b110; // Coseno
-                4'h7: modo_grafica <= 1'b1;   // Activar Gráfica
-                4'h8: flag_var_x   <= 1'b1;   // Activar X
+                4'h7: modo_grafica <= 1'b1;   // Activar Modo Grafica
+                4'h8: flag_var_x   <= 1'b1;   // Activar Variable X
                 default: ;
             endcase
         end
@@ -366,7 +380,7 @@ module controlador_entradas (
 
 endmodule
 
-// BLOQUE 2: CONVERSOR DUAL BCD A IEEE-754 (Operandos A y B)
+
 module conversor_dual_AB (
     input  wire        clk,
     input  wire        reset,
@@ -404,6 +418,7 @@ module conversor_dual_AB (
 
 endmodule
 
+
 module captura_y_bcd_a_float #(
     parameter N = 32
 )(
@@ -416,29 +431,34 @@ module captura_y_bcd_a_float #(
     input  wire [3:0]  teclado_in,
     output wire [31:0] ieee754_out
 );
-    reg  [3:0] q_tecla;
-    wire       captura_en;
 
-    assign captura_en = tecla_valida & enable;
+    reg  [3:0] q_tecla;
+    wire       captura_en = tecla_valida & enable;
 
     always @(posedge clk or posedge reset) begin
-        if (reset || clear_op)
+        if (reset)
             q_tecla <= 4'b0000;
+        else if (clear_op)
+            q_tecla <= captura_en ? teclado_in : 4'b0000;
         else if (captura_en)
             q_tecla <= teclado_in;
     end
 
-    wire es_punto;
-    wire es_digito;
+    wire es_digito = captura_en & ~(teclado_in == 4'b1010);
 
-    assign es_punto  = q_tecla[3] & ~q_tecla[2] & q_tecla[1] & ~q_tecla[0];
-    assign es_digito = captura_en & ~(teclado_in == 4'b1010);
-
+    // registros de desplazamiento para los 5 digitos
     reg [3:0] A0, A1, A2, A3, A4;
 
     always @(posedge clk or posedge reset) begin
-        if (reset || clear_op) begin
+        if (reset) begin
             A0 <= 4'd0; A1 <= 4'd0; A2 <= 4'd0; A3 <= 4'd0; A4 <= 4'd0;
+        end else if (clear_op) begin
+            // si llega auto_clear junto con el primer digito nuevo, lo carga en A0
+            A0 <= es_digito ? teclado_in : 4'd0;
+            A1 <= 4'd0;
+            A2 <= 4'd0;
+            A3 <= 4'd0;
+            A4 <= 4'd0;
         end else if (es_digito) begin
             A0 <= teclado_in;
             A1 <= A0;
@@ -448,6 +468,7 @@ module captura_y_bcd_a_float #(
         end
     end
 
+    // suma ponderada BCD a binario entero
     wire [31:0] term_A0, term_A1, term_A2, term_A3, term_A4;
     wire [31:0] binario_entero;
 
@@ -461,12 +482,15 @@ module captura_y_bcd_a_float #(
 
     assign binario_entero = term_A0 + term_A1 + term_A2 + term_A3 + term_A4;
 
+    // bandera de punto decimal y contador de decimales
     reg  flag_punto;
     wire en_counter;
 
     always @(posedge clk or posedge reset) begin
-        if (reset || clear_op)
+        if (reset)
             flag_punto <= 1'b0;
+        else if (clear_op)
+            flag_punto <= (enable && (teclado_in == 4'b1010) && tecla_valida);
         else if (enable && (teclado_in == 4'b1010) && tecla_valida)
             flag_punto <= 1'b1;
     end
@@ -487,6 +511,7 @@ module captura_y_bcd_a_float #(
     assign mux_stage1 = k_count[1] ? (mux_stage0 << 2)     : mux_stage0;
     assign mux_stage2 = k_count[2] ? (mux_stage1 << 4)     : mux_stage1;
 
+    // normalizacion y empaquetado IEEE 754
     reg        sign_reg;
     reg [4:0]  msb_pos;
     reg [7:0]  exponente;
@@ -495,8 +520,10 @@ module captura_y_bcd_a_float #(
     integer    i;
 
     always @(posedge clk or posedge reset) begin
-        if (reset || clear_op)
+        if (reset)
             sign_reg <= 1'b0;
+        else if (clear_op)
+            sign_reg <= (enable && pulso_signo);
         else if (enable && pulso_signo)
             sign_reg <= ~sign_reg;
     end
@@ -524,9 +551,7 @@ module captura_y_bcd_a_float #(
 
 endmodule
 
-// BLOQUE 3: ALU IEEE-754 CON MUX 4:1
-// opcode_alu[1:0]: 00=Suma/Resta, 01=Mult/Div, 10=Sen/Cos, 11=0
-// opcode_alu[2]  : 0=Suma/Mult/Sen, 1=Resta/Div/Cos
+
 module alu_ieee754 (
     input  wire        clk,
     input  wire        rst,
@@ -541,7 +566,7 @@ module alu_ieee754 (
     wire [1:0] sel_mux4 = opcode_alu[1:0];
     wire       sub_op   = opcode_alu[2];
 
-    // --- Canal 00: Suma / Resta ---
+    // suma y resta
     wire [31:0] res_suma_resta;
     wire        done_suma;
 
@@ -551,12 +576,12 @@ module alu_ieee754 (
         .start     (start && (sel_mux4 == 2'b00)),
         .A         (A),
         .B         (B),
-        .operacion (sub_op),         // 0 = Suma, 1 = Resta
+        .operacion (sub_op),
         .C         (res_suma_resta),
         .done      (done_suma)
     );
 
-    // --- Canal 01: Multiplicación / División ---
+    // multiplicacion y division
     wire [31:0] res_mult;
     wire [31:0] res_div;
     wire        done_div;
@@ -588,7 +613,7 @@ module alu_ieee754 (
     wire [31:0] canal_01_mult_div = sub_op ? res_div  : res_mult;
     wire        done_01           = sub_op ? done_div : done_mult;
 
-    // --- Canal 10: Seno / Coseno (CORDIC + Conversión Q3.29 -> IEEE-754) ---
+    // seno y coseno con CORDIC
     wire signed [31:0] cos_q329;
     wire signed [31:0] sen_q329;
     wire               done_trig;
@@ -610,19 +635,18 @@ module alu_ieee754 (
 
     wire [31:0] canal_10_trig = sub_op ? cos_ieee : sen_ieee;
 
-    // --- MUX 4:1 Principal de la ALU ---
+    // multiplexor 4 a 1 de salida de la ALU
     reg [31:0] mux4_alu_out;
     always @(*) begin
         case (sel_mux4)
-            2'b00:   mux4_alu_out = res_suma_resta;    // Suma / Resta
-            2'b01:   mux4_alu_out = canal_01_mult_div; // Multiplicación / División
-            2'b10:   mux4_alu_out = canal_10_trig;     // Seno / Coseno
-            2'b11:   mux4_alu_out = 32'd0;             // Reservado
+            2'b00:   mux4_alu_out = res_suma_resta;
+            2'b01:   mux4_alu_out = canal_01_mult_div;
+            2'b10:   mux4_alu_out = canal_10_trig;
+            2'b11:   mux4_alu_out = 32'd0;
             default: mux4_alu_out = 32'd0;
         endcase
     end
 
-    // Selección de bandera done según la operación activa
     reg done_mux;
     always @(*) begin
         case (sel_mux4)
@@ -647,7 +671,7 @@ module alu_ieee754 (
 
 endmodule
 
-// SUBMÓDULO ALU: DIVISIÓN IEEE-754 + SU FSM DE CONTROL
+
 module floating_point_divider (
     input  wire        clk,
     input  wire        reset,
@@ -709,6 +733,7 @@ module floating_point_divider (
 
 endmodule
 
+
 module fsm_divider_control (
     input  wire clk,
     input  wire reset,
@@ -719,6 +744,7 @@ module fsm_divider_control (
     output reg  sel_A,
     output reg  done
 );
+
     localparam [1:0] S_IDLE = 2'b00,
                      S_INIT = 2'b01,
                      S_CALC = 2'b10,
@@ -764,16 +790,17 @@ module fsm_divider_control (
             end
         endcase
     end
+
 endmodule
 
-// SUBMÓDULO ALU: SUMA Y RESTA IEEE-754
+
 module suma (
     input  wire        clk,
     input  wire        rst,
     input  wire        start,
     input  wire [31:0] A,
     input  wire [31:0] B,
-    input  wire        operacion,
+    input  wire        operacion, // 0 suma, 1 resta
     output reg  [31:0] C,
     output reg         done
 );
@@ -828,11 +855,10 @@ module suma (
                 end
 
                 alinear: begin
-                    if (expoA >= expoB) begin
+                    if (expoA >= expoB)
                         mantBtemp <= mantBtemp >> difexp;
-                    end else begin
+                    else
                         mantAtemp <= mantAtemp >> difexp;
-                    end
                     estado <= sumar;
                 end
 
@@ -882,12 +908,13 @@ module suma (
 
 endmodule
 
-// SUBMÓDULO ALU: MULTIPLICACIÓN IEEE-754
+
 module Multipler (
     input  wire [31:0] A,
     input  wire [31:0] B,
     output wire [31:0] S
 );
+
     wire [47:0] J;
     wire [23:0] concatenacionA;
     wire [23:0] concatenacionB;
@@ -897,8 +924,8 @@ module Multipler (
     wire [22:0] mantiza;
 
     assign H              = 8'd127;
-    assign signo          = (A[31] && ~B[31] || ~A[31] && B[31]);
-    assign exp            = (A[30:23] + B[30:23] + J[47]) - H;
+    assign signo          = (A[31] && ~B[31] || ~A[31] && B[31]); // calculo del signo con XOR
+    assign exp            = (A[30:23] + B[30:23] + J[47]) - H;    // multiplicacion de exponentes con sesgo
     assign concatenacionA = {1'b1, A[22:0]};
     assign concatenacionB = {1'b1, B[22:0]};
     assign J              = concatenacionB * concatenacionA;
@@ -910,8 +937,10 @@ module Multipler (
         .Y (mantiza)
     );
 
-    assign S = {signo, exp, mantiza};
+    assign S = {signo, exp, mantiza}; // resultado final
+
 endmodule
+
 
 module mux_2a1 (
     input  wire [22:0] A,
@@ -922,7 +951,7 @@ module mux_2a1 (
     assign Y = C ? B : A;
 endmodule
 
-// SUBMÓDULO ALU: SENO / COSENO CORDIC + CONVERSIÓN Q3.29 -> IEEE-754
+
 module cordic (
     input  wire               clk,
     input  wire               rst,
@@ -933,9 +962,11 @@ module cordic (
     output reg                A,
     output reg                B
 );
-    reg  signed [31:0] x, y, z;
-    reg  signed [31:0] xn, yn, zn;
-    reg  [4:0]         i;
+
+    reg signed [31:0] x, y, z;
+    reg signed [31:0] xn, yn, zn;
+    reg [4:0]         i;
+
     wire signed [31:0] angulo_rom;
 
     arctan ROM (
@@ -988,12 +1019,15 @@ module cordic (
             end
         end
     end
+
 endmodule
+
 
 module arctan (
     input  wire [4:0]         direccion,
     output reg  signed [31:0] dato
 );
+
     always @(*) begin
         case (direccion)
             0:  dato = 32'sd421657428;
@@ -1015,7 +1049,9 @@ module arctan (
             default: dato = 0;
         endcase
     end
+
 endmodule
+
 
 module reduccion (
     input  wire signed [31:0] angulo,
@@ -1023,11 +1059,11 @@ module reduccion (
     output reg                signo_cos,
     output reg                signo_sen
 );
+
     reg signed [31:0] normalizado;
 
     always @(*) begin
         normalizado = angulo % 32'sd23592960;
-
         if (normalizado < 0)
             normalizado = normalizado + 32'sd23592960;
 
@@ -1049,12 +1085,15 @@ module reduccion (
             signo_sen       = 1;
         end
     end
+
 endmodule
+
 
 module conversor (
     input  wire [31:0]        flotante,
     output reg  signed [31:0] q1616
 );
+
     reg        signo;
     reg [7:0]  exponente;
     reg [22:0] mantisa;
@@ -1098,18 +1137,24 @@ module conversor (
             end
         end
     end
+
 endmodule
+
 
 module grados_a_radianes (
     input  wire signed [31:0] grados,
     output reg  signed [31:0] radianes
 );
+
     reg signed [63:0] producto;
+
     always @(*) begin
         producto = grados * 64'sd149922641;
         radianes = producto >>> 20;
     end
+
 endmodule
+
 
 module calculadora_trig (
     input  wire               clk,
@@ -1120,8 +1165,9 @@ module calculadora_trig (
     output reg  signed [31:0] seno,
     output reg                listo
 );
-    reg  signed [31:0] grados_reg;
-    reg  [1:0]         estado;
+
+    reg signed [31:0] grados_reg;
+    reg [1:0]         estado;
 
     wire signed [31:0] q1616;
     wire signed [31:0] angulo_reducido;
@@ -1200,13 +1246,15 @@ module calculadora_trig (
             endcase
         end
     end
+
 endmodule
 
-// Conversor Q3.29 (salida CORDIC) -> IEEE-754 (32 bits)
+
 module q329_to_ieee754 (
     input  wire signed [31:0] val_q329,
     output reg         [31:0] ieee_out
 );
+
     wire        sign = val_q329[31];
     wire [31:0] mag  = sign ? (~val_q329 + 32'd1) : val_q329;
     reg  [4:0]  msb_pos;
@@ -1226,9 +1274,10 @@ module q329_to_ieee754 (
             ieee_out = {sign, (8'd98 + {3'd0, msb_pos}), shifted[30:8]};
         end
     end
+
 endmodule
 
-// BLOQUE 4: LÓGICA DE SALIDA (IEEE-754 -> BCD Y 8 DISPLAYS NEXYS)
+
 module float_to_bcd_nexys (
     input  wire        clk,
     input  wire        RST,
@@ -1260,8 +1309,10 @@ module float_to_bcd_nexys (
         else if (Load)
             Q2 <= exp_unbiased;
         else if (En2) begin
-            if (Up) Q2 <= Q2 + 8'd1;
-            else    Q2 <= Q2 - 8'd1;
+            if (Up)
+                Q2 <= Q2 + 8'd1;
+            else
+                Q2 <= Q2 - 8'd1;
         end
     end
 
@@ -1272,7 +1323,8 @@ module float_to_bcd_nexys (
     wire [47:0] q3_mul10 = (Q3 << 3) + (Q3 << 1);
     wire [47:0] q3_div10 = (Q3 >> 4) + (Q3 >> 5) + (Q3 >> 8) +
                            (Q3 >> 9) + (Q3 >> 12) + (Q3 >> 13);
-    wire [47:0] N        = a ? q3_div10 : q3_mul10;
+
+    wire [47:0] N = a ? q3_div10 : q3_mul10;
 
     reg [47:0] mux4_q3;
     always @(*) begin
@@ -1324,8 +1376,10 @@ module float_to_bcd_nexys (
         else if (rstc)
             Exp10 <= 8'd0;
         else if (Enbcd) begin
-            if (Up) Exp10 <= Exp10 + 8'd1;
-            else    Exp10 <= Exp10 - 8'd1;
+            if (Up)
+                Exp10 <= Exp10 + 8'd1;
+            else
+                Exp10 <= Exp10 - 8'd1;
         end
     end
 
@@ -1336,9 +1390,9 @@ module float_to_bcd_nexys (
             signe <= Exp10[7];
     end
 
+    // double dabble para exponente y mantisa
     wire [6:0] exp_neg = (~Exp10[6:0]) + 7'd1;
     wire [6:0] m       = Exp10[7] ? exp_neg : Exp10[6:0];
-
     wire [3:0] q1, q2_bcd, q3_bcd, q4_bcd;
     add3_stage u_q1 (.in({1'b0,         m[6:4]}), .out(q1));
     add3_stage u_q2 (.in({q1[2:0],     m[3]}),   .out(q2_bcd));
@@ -1389,6 +1443,7 @@ module float_to_bcd_nexys (
         end
     end
 
+    // barrido de displays a 1 kHz
     reg [16:0] div_cnt;
     wire       en_1khz = (div_cnt == 17'd99_999);
 
@@ -1434,6 +1489,7 @@ module float_to_bcd_nexys (
 
 endmodule
 
+
 module fsm_control (
     input  wire       clk,
     input  wire       RST,
@@ -1452,6 +1508,7 @@ module fsm_control (
     output reg        Up,
     output reg        done
 );
+
     localparam [1:0] S0 = 2'b00,
                      S1 = 2'b01,
                      S2 = 2'b10,
@@ -1537,7 +1594,9 @@ module fsm_control (
             default: next_state = S0;
         endcase
     end
+
 endmodule
+
 
 module add3_stage (
     input  wire [3:0] in,
@@ -1545,6 +1604,7 @@ module add3_stage (
 );
     assign out = (in > 4'b0100) ? (in + 4'b0011) : in;
 endmodule
+
 
 module bcd_7seg_decoder (
     input  wire [3:0] code,
@@ -1564,7 +1624,7 @@ module bcd_7seg_decoder (
             4'b1001: seg = 7'b0000100; // 9
             4'b1101: seg = 7'b1111110; // '-'
             4'b1110: seg = 7'b0110000; // 'E'
-            default: seg = 7'b1111111; // Apagado
+            default: seg = 7'b1111111; // apagado
         endcase
     end
 endmodule
