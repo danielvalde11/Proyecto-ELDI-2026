@@ -21,7 +21,16 @@ Para la reproducción del proyecto se requiere tener los siguientes recursos de 
   - La matriz de botones contendra cuatro pines de filas (R4-R1), los cuales tendran que ser conectados a JA para la matriz 1 y JB para la matriz 2. Es importante que sean conectados en el          siguiente orden: R1 se conectara a la fila superior, primer pin de izquierda a derecha ( o en su defecto al pin donde aparezca un 1 en la FPGA al lado de los pines JA y JB), desde ahi se        conectara los pines faltantes de las columnas en el mismo orden, es decir, R2 ira a la segunda posición de la fila de abajo de la FPGA y los demás seran conectados en ese mismo orden.
   - Es importante tener en cuenta que los pines de vcc y gnd tanto de JA como de JB tendran que estar desconectados
   # Pasos para la matriz de LEDs:
-  - 
+  - Para la visualización de las funciones trigonométricas se utilizan dos módulos de matrices LED de 8×32 píxeles, conformados por cuatro matrices de 8×8 cada uno. Al conectarlos en cascada, se obtiene una superficie de visualización de 64 columnas y 8 filas, permitiendo representar gráficamente las funciones seno, coseno o ambas simultáneamente.
+  - Cada módulo incorpora controladores MAX7219, encargados de gestionar el encendido de los LEDs mediante comunicación serial, reduciendo la cantidad de conexiones necesarias entre las matrices y la FPGA.
+  - Para realizar las conexiones se deben seguir los siguientes pasos:
+  - **1. Identificar los pines del módulo:** Cada matriz dispone de cinco conexiones principales: VCC, GND, DIN, CS y CLK.
+  - **2. Alimentación:** aunque en el datasheet de estas matrices de leds dicen que se debe alimentar con 5V, los 3.3V de la fpga bastan para su alimentación.
+  - **3. Comunicación con la FPGA:** Conectar las señales DIN, CLK y CS del primer módulo a tres pines de salida digital disponibles de la tarjeta Nexys 4 DDR. La asignación de estos pines debe coincidir con las restricciones establecidas en el archivo .xdc.
+  - **4. Conexión en cascada:** Conectar la salida DOUT del primer módulo a la entrada DIN del segundo módulo. Ambos módulos deben compartir las señales CLK y CS, además de contar con alimentación y tierra adecuadas. De esta manera, los ocho controladores MAX7219 quedan organizados en una cadena de comunicación serial.
+  - **5. Control de visualización:**  El módulo Verilog graficadora_top genera las señales DIN, CLK_MAX y CS_MAX para transmitir la información almacenada en la memoria gráfica. Los datos se organizan en paquetes de 16 bits por controlador, permitiendo actualizar las ocho filas de las matrices.
+  - **6. Representación de funciones:** La graficadora utiliza el algoritmo CORDIC para calcular 64 puntos de las funciones seno y coseno. Posteriormente, convierte los resultados al rango de filas disponible en la matriz y permite seleccionar la función representada y su amplitud.
+   
 # Pasos para la replicación del proyecto en vivado:
  ## 1. Creación del proyecto en Vivado
 - Abrir **Xilinx Vivado** y seleccionar **Create Project**.
@@ -63,6 +72,8 @@ Por último te quedara hacer las pruebas de funcionamiento correcto, recuerda qu
 
 - **Divisor secuencial (24 ciclos) vs. divisor combinacional:** Se descartó una arquitectura puramente combinacional debido a su alto consumo de LUTs y a un camino crítico extenso que comprometería el cierre de tiempos a `100 MHz`, optando por una FSM iterativa de desplazamiento y resta.
 - **ALU multiplexada `4:1` con control de sub-operación (`opcode_alu[2]`):** Permite reutilizar el bloque sumador para la resta (invirtiendo el signo de `B`) y compartir el núcleo CORDIC para obtener seno y coseno con el mismo hardware.
+-**Cordic sin Q23.19 y más iteraciones:** Sin q23.29 se acompleja por el uso de decimales, y se usan más iteraciones para generar un resultado más aproximado.
+-**Graficar en VGA:** en vez de graficar en una matriz de leds, se pensó hacerlo a través de una pantalla en VGA. 
 
 ## Trabajo Futuro
 
@@ -83,6 +94,8 @@ Por último te quedara hacer las pruebas de funcionamiento correcto, recuerda qu
 # DECLARACIÓN DEL USO DE IA:
 Para el proyecto fue necesario el uso de IA principalmente Gemini IA y Claude. Los usos que se le dierona estas fue la generación/acompañamiento del desarrollo del codigo en los diferentes modulos, generación de imagenes y consultación de información requerida durante el proyecto. A continuación presentamos todos los usos de estas dos IAs en nuestro proyecto:
 - **Módulo de entradas lógicas (`Entradas y sumas/entradas.v`):** Se utilizó la IA para generar el código que representa la FSM y asignar los valores BCD a cada posición de la matriz de botones.
+-**Módulo de Cordic (`Seno.v`):** Se utilizó la IA para entender el algoritmo de Cordic, y para convertir de sistema IEEE 754 a q23.29.
+-**Módulo de graficadora (`generador_angulo.v`):** Se generó la parte del flujjo de datos a través del módulo MAX7219,y se usó como apoyo para el módulo de generador de coordenadas.
 - **Módulo de conversión de BCD a IEEE 754 (`ConverterBCD to IEEE754/Verilogcode.v`):** Se generó el código totalmente con Gemini IA, enviándole el diagrama del diseño y la explicación del  funcionamiento para que implementara el código según el diseño planteado.
 - **Lógica de división (`Divider Logic/Verilog code.v`):** Se pidió generar el código para el proceso de división secuencial de la mantisa.
 - **Módulo de salidas (`Output logic/Output_logic.v`):** Se generó el código totalmente con Gemini IA, subiendo el diagrama del diseño y explicando la lógica requerida para guiar la generación del código.
