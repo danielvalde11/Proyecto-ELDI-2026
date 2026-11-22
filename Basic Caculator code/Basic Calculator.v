@@ -1,3 +1,4 @@
+//Còdigo generado por Gemini IA
 module calculadora_top (
     input  wire        clk,        
     input  wire        rst,       
