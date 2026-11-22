@@ -1,4 +1,3 @@
-//Código generado por IA -- Código no funcional --
 module calculadora_top (
     input  wire        clk,        
     input  wire        rst,       
@@ -15,7 +14,6 @@ module calculadora_top (
     output wire [14:0] debug_led
 );
 
-  
     wire [3:0]  tecla_num_out;
     wire        tecla_valida_pulse;
     wire        pulso_signo_pulse;
@@ -33,6 +31,7 @@ module calculadora_top (
 
     wire [31:0] alu_result;
     wire        alu_done;
+
     // Generación de pulso de 1 ciclo (100 MHz) al presionar '=' (calcular_trigger)
     reg calc_trig_d1, calc_trig_d2;
     always @(posedge clk or posedge rst) begin
@@ -79,6 +78,7 @@ module calculadora_top (
         .flag_var_x         (flag_var_x),
         .calcular_trigger   (calcular_trigger)
     );
+
     // 2. CONVERSORES BCD -> IEEE-754 (Operandos A y B)
     conversor_dual_AB u_bcd_to_float (
         .clk          (clk),
@@ -92,6 +92,7 @@ module calculadora_top (
         .A_float      (A_float),
         .B_float      (B_float)
     );
+
     // 3. ALU IEEE-754 CON MUX 4:1
     alu_ieee754 u_alu (
         .clk        (clk),
@@ -120,13 +121,15 @@ module calculadora_top (
             rst_out_cnt       <= rst_out_cnt - 2'd1;
         end
     end
-assign debug_led[14:11] = tecla_num_out;
-assign debug_led[10]    = (col_num != 4'b1111);
-assign debug_led[9]     = (col_op  != 4'b1111);
-assign debug_led[8]     = enable_A;
-assign debug_led[7]     = enable_B;
-assign debug_led[6:4]   = opcode_alu;
-assign debug_led[3:0]   = A_float[26:23];
+
+    assign debug_led[14:11] = tecla_num_out;
+    assign debug_led[10]    = (col_num != 4'b1111);
+    assign debug_led[9]     = (col_op  != 4'b1111);
+    assign debug_led[8]     = enable_A;
+    assign debug_led[7]     = enable_B;
+    assign debug_led[6:4]   = opcode_alu;
+    assign debug_led[3:0]   = A_float[26:23];
+
     float_to_bcd_nexys u_output_logic (
         .clk  (clk),
         .RST  (rst_output_logic),
@@ -138,6 +141,7 @@ assign debug_led[3:0]   = A_float[26:23];
     );
 
 endmodule
+
 // BLOQUE 1: CONTROLADOR DE ENTRADAS (Teclados Matriciales + FSM)
 module controlador_entradas (
     input  wire       clk,
@@ -167,7 +171,7 @@ module controlador_entradas (
 );
 
     reg [19:0] div_clk;
-    wire clk_lento = div_clk[19];
+    wire clk_lento = div_clk[1]; // NOTA: Cambiar a div_clk[19] antes de sintetizar en la Nexys
     always @(posedge clk or posedge rst) begin
         if (rst) div_clk <= 20'd0;
         else     div_clk <= div_clk + 1'b1;
@@ -260,7 +264,7 @@ module controlador_entradas (
         end else begin
             ev_d1 <= new_key_event;
             ev_d2 <= ev_d1;
-            if (ev_d1 && !ev_d2)
+            if (new_key_event)
                 tecla_num_out <= latched_tecla;
         end
     end
@@ -518,6 +522,7 @@ module captura_y_bcd_a_float #(
     assign ieee754_out = {sign_reg, exponente, mantisa};
 
 endmodule
+
 // BLOQUE 3: ALU IEEE-754 CON MUX 4:1
 // opcode_alu[1:0]: 00=Suma/Resta, 01=Mult/Div, 10=Sen/Cos, 11=0
 // opcode_alu[2]  : 0=Suma/Mult/Sen, 1=Resta/Div/Cos
@@ -761,7 +766,6 @@ module fsm_divider_control (
 endmodule
 
 // SUBMÓDULO ALU: SUMA Y RESTA IEEE-754
-
 module suma (
     input  wire        clk,
     input  wire        rst,
@@ -876,8 +880,8 @@ module suma (
     end
 
 endmodule
-// SUBMÓDULO ALU: MULTIPLICACIÓN IEEE-754
 
+// SUBMÓDULO ALU: MULTIPLICACIÓN IEEE-754
 module Multipler (
     input  wire [31:0] A,
     input  wire [31:0] B,
@@ -1058,13 +1062,13 @@ module conversor (
     integer    shift_amount;
 
     always @(*) begin
-        signo       = flotante[31];
-        exponente   = flotante[30:23];
-        mantisa     = flotante[22:0];
-        significand = 0;
-        magnitud    = 0;
+        signo        = flotante[31];
+        exponente    = flotante[30:23];
+        mantisa      = flotante[22:0];
+        significand  = 0;
+        magnitud     = 0;
         shift_amount = 0;
-        q1616       = 0;
+        q1616        = 0;
 
         if (exponente == 8'hFF) begin
             if (mantisa == 0) begin
@@ -1224,7 +1228,6 @@ module q329_to_ieee754 (
 endmodule
 
 // BLOQUE 4: LÓGICA DE SALIDA (IEEE-754 -> BCD Y 8 DISPLAYS NEXYS)
-
 module float_to_bcd_nexys (
     input  wire        clk,
     input  wire        RST,
