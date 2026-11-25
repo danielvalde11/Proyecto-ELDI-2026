@@ -48,7 +48,7 @@ Para la reproducción del proyecto se requiere tener los siguientes recursos de 
 - Ejecutar **Run Implementation** y comprobar en el resumen de tiempos (*Timing Summary*) que no existan violaciones (`WNS >= 0 ns`).
 - Hacer clic en **Generate Bitstream** para generar el archivo binario `calculadora_top.bit`.
 
-Por último te quedara hacer las pruebas de funcionamiento correcto, recuerda que en los 8 displays se vera el resultado de las operaciones indicadas.
+Por último te quedara hacer las pruebas de funcionamiento correcto, recuerda que en los 8 displays de la Nexys se vera el resultado de las operaciones indicadas.
 
 # LIMITACIONES DEL PROYECTO A TENER EN CUENTA:
 ## Limitaciones del Diseño
